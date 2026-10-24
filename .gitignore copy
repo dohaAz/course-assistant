@@ -1,0 +1,17 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.env
+.streamlit/secrets.toml
+.ipynb_checkpoints/
+.pytest_cache/
+.cache/
+models/
+.faiss/
+*.faiss
+*.index
+data/*.pdf
+data/*.pptx
+!data/README.md
+.DS_Store
