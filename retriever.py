@@ -1,34 +1,39 @@
-"""Student 2: index chunks with FAISS and retrieve Top-K relevant passages."""
-from __future__ import annotations
-from embeddings import encode_texts
+# retriever.py
+import faiss
+from embeddings import embed_texts
 
 
 def build_index(chunks: list[dict]):
-    """Return a FAISS cosine-equivalent inner product index.
-
-    Chunk order must be kept identical to FAISS insertion order.
-    """
+    """Construit l'index FAISS. L'ordre de `chunks` définit les identifiants internes."""
     if not chunks:
-        raise ValueError("No chunks to index")
-    import faiss
-    vectors = encode_texts([item["text"] for item in chunks])
-    index = faiss.IndexFlatIP(vectors.shape[1])
-    index.add(vectors)
+        return None
+    vecs = embed_texts([c["text"] for c in chunks], kind="passage")
+    index = faiss.IndexFlatIP(vecs.shape[1])   # recherche exacte, produit scalaire
+    index.add(vecs)
     return index
 
 
 def retrieve(question: str, index, chunks: list[dict], k: int = 3) -> list[dict]:
-    """Return [{'chunk_id','text','source','page','score'}, ...]."""
-    if not question.strip() or not chunks:
+    """Top-k chunks les plus proches de la question, avec score."""
+    if index is None or not chunks or not question or not question.strip():
         return []
-    import numpy as np
-    vec = encode_texts([question])
-    scores, positions = index.search(vec, min(max(k, 1), len(chunks)))
+    k = min(k, index.ntotal, len(chunks))
+    if k <= 0:
+        return []
+
+    q = embed_texts([question.strip()], kind="query")
+    scores, ids = index.search(q, k)
+
     results = []
-    for score, position in zip(scores[0], positions[0]):
-        if position < 0:
+    for score, i in zip(scores[0], ids[0]):
+        if i < 0:                       # FAISS renvoie -1 s'il manque des résultats
             continue
-        result = dict(chunks[int(position)])
-        result["score"] = float(score)
-        results.append(result)
+        c = chunks[int(i)]
+        results.append({
+            "chunk_id": c["chunk_id"],
+            "text": c["text"],
+            "source": c["source"],
+            "page": c["page"],
+            "score": float(score),      # float Python, pas numpy.float32 (sérialisation JSON)
+        })
     return results
